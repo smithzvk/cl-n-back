@@ -17,10 +17,11 @@
 ;; Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 (defpackage :cl-n-back
-  (:nickname :n-back)
+  (:nicknames :n-back)
   (:use :cl :iterate :ltk :trivial-shell :funds :toolbox)
-  (:export (#:n-back)) )
+  (:export #:n-back) )
 
-(in-package :cl-n-back)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (in-package :cl-n-back)
 
-(import 'trivial-shell::create-shell-process)
+  (import 'trivial-shell::create-shell-process) )
