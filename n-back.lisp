@@ -131,7 +131,8 @@ adjust for it elsewhere."
               (when (or (and pic-match (not (pic-keypressed)))
                         (and (not pic-match) (pic-keypressed)) )
                 (incf errors) )
-              (format t "Iteration ~A~%  Sound Match: ~A~%  Picture Match: ~A~%  Sound Pressed: ~A~%  Picture Pressed: ~A~%  SCORE: ~A ERRORS: ~A MATCHES: ~A~%" i snd-match pic-match (snd-keypressed) (pic-keypressed) score errors matches) ))
+              ;(format t "Iteration ~A~%  Sound Match: ~A~%  Picture Match: ~A~%  Sound Pressed: ~A~%  Picture Pressed: ~A~%  SCORE: ~A ERRORS: ~A MATCHES: ~A~%" i snd-match pic-match (snd-keypressed) (pic-keypressed) score errors matches)
+              ))
           (setf (car pics) pic
                 (car snds) snd )
           (finally (return (if (= 0 matches) 0.5 (/ (- score errors) matches)))) )))
