@@ -33,12 +33,11 @@ but shifted by one."
          (values-list (cons time result)) ))))
 
 (defun play-mp3 (snd)
-  "Play the mp3 in the file given by SND using mpg321 through a bash
-shell.  We are asking trivial-shell not to wait for completion (the
-second arguement passed as nil) but we will return the time it takes
-to run this just in case there is some overhead, that way we can
-adjust for it elsewhere."
-  (timed-progn #>(mpg321 -q ,snd)) )
+  "Play the mp3 in the file given by SND using mpg321 through a bash shell.  We
+don't want to wait for completion so timing works correctly."
+  ;; Background the shell command and send output to /dev/null and the command
+  ;; won't wait.
+  (timed-progn #>(mpg321 -q ,snd > /dev/null 2>&1 &)) )
 
 (defvar *high-mark* .7)
 (defvar *low-mark* .2)
