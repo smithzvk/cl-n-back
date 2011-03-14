@@ -18,50 +18,34 @@
 
 (in-package :cl-n-back)
 
-(defmacro lambda-in-dynamic-environment (specials vars &body body)
-  "Define an anonymous function with lambda list VARS and BODY which executes
-with the specified dynamic variables in SPECIALS bound as they are when it is
-declared (not as they are when it is called).  This kind of defeating the
-purpose of dynamic variables, but I find it useful when writing callback
-functions (which are invoked in code that I did not write and thus have little
-control over the dynamic bindings there).  Note that declarations in the body
-are handled correctly.
-
-Ex:
- (let ((*print-pretty* nil))
-   (lambda-in-dynamic-environment (*print-pretty*) (some-form some-other-variable)
-     (declare (ignore some-other-variable))
-     (print some-form) ))
-
-...will print without pretty printing when invoked (no matter that the dynamic
-bindings are at that time).
-
-I find it preferable to actually SETFing the dynamic variables.  If anyone has
-a better way to do what I am trying to do, I would like to know it (like not
-using dynamic variables at all?)."
-  (let ((var-names (tb::get-gensyms (length specials))))
-    (multiple-value-bind (body-decl body)
-        (split-on (/. (x) (not (eql (car x) 'cl:declare))) body)
-      `(let ,(group (shuffle var-names specials) 2)
-         (lambda ,vars
-           ,@body-decl
-           (let ,(group (shuffle specials var-names) 2)
-             (declare (special ,@specials))
-             ,@body ))))))
-
 (defun time-function (fn &rest args)
-  "Call function FN with ARGS and measure the time to do so which is
-returned as a float approximating the number of seconds. The time is
-passed as the first of the values returned, all the other values are
-pushed one down the list.
+  "Call function FN with ARGS and measure the time to do so which is returned
+as a float approximating the number of seconds. The time is passed as the first
+of the values returned, all the other values are pushed one down the list.
 
-  We use internal-real-time here as it usually has more precision
-than universal time (which is measured in seconds)"
+We use internal-real-time here as it usually has more precision than universal
+time (which is measured in seconds)"
   (let ((start (get-internal-real-time))
         (result (multiple-value-list (apply fn args)))
         (end (get-internal-real-time)) )
     (values-list (cons (float (/ (- end start) internal-time-units-per-second) 0.0)
                        result ))))
+
+(defmacro timed-progn (&body body)
+  "Run code in an environment that measures how long it takes.  Return the time
+it takes as the first return value, the rest will be the expected return values
+but shifted by one."
+  `(let ((start (get-internal-real-time))
+         end )
+     (let ((result
+             (multiple-value-list
+                 (unwind-protect
+                      (progn ,@body)
+                   (setf end (get-internal-real-time)) ))))
+       (let ((time (float (/ (- end start) internal-time-units-per-second) 0.0)))
+         (when (< time 0)
+           (error "Time was negative.  Perhaps the internal time has wrapped around?") )
+         (values-list (cons time result)) ))))
 
 (defun play-mp3 (snd)
   "Play the mp3 in the file given by SND using mpg321 through a bash
@@ -69,8 +53,7 @@ shell.  We are asking trivial-shell not to wait for completion (the
 second arguement passed as nil) but we will return the time it takes
 to run this just in case there is some overhead, that way we can
 adjust for it elsewhere."
-  (time-function
-   #'shell-command (strcat "mpg321 -q " snd) ))
+  (timed-progn #>(mpg321 -q ,snd)) )
 
 (defvar *high-mark* .7)
 (defvar *low-mark* .2)
@@ -220,15 +203,13 @@ adjust for it elsewhere."
                                                    (* 200 j)
                                                    (* 200 (1+ i))
                                                    (* 200 (1+ j)) ))))))
-             (*sounds*
-              (ppcre:split "\\s+"
-                           (shell-command "echo ~/src/haskell/hback-0.0.2/sounds/*.mp3") ))
+             (*sounds* #>(ls ~/src/lisp/packages/cl-n-back/sounds/*.mp3)/#\Newline)
              (n-text-field (make-instance 'entry :text (mkstr n)))
              (n-times-field (make-instance 'entry :text (mkstr n-times)))
              (block-size-field (make-instance 'entry :text (mkstr block-size)))
              (start-n-back (make-instance
                             'button :text "Play N-Back"
-                            :command (lambda-in-dynamic-environment
+                            :command (lambda-in-dyn-env
                                          (*cvs* *?-back* *score* *score-board* *announce*
                                                 *pictures* *sounds* *delay* *picture-delay* )
                                          ()

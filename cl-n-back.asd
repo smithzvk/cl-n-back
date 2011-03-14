@@ -24,4 +24,5 @@
   :components ((:file "package")
                (:file "n-back") )
   :serial t
-  :depends-on (:ltk :trivial-shell :funds :iterate :bordeaux-threads :toolbox) )
+  :depends-on (:ltk :trivial-shell :funds :iterate :bordeaux-threads
+                    :toolbox :clommand ))
