@@ -230,10 +230,3 @@ don't want to wait for completion so timing works correctly."
         (pack start-n-back :side :left)
         (pack n-times-field :side :left)
         (pack block-size-field :side :left) ))))
-
-;; This does not work (hangs while processing events, though it seems it shouldn't).
-(defun process-commands-while-waiting (seconds &optional (delay-time 1/20))
-  (let ((time 0))
-    (tb::while (< time seconds)
-      (incf time (time-function #'process-events))
-      (sleep delay-time) )))
