@@ -1,0 +1,7 @@
+An N-Back implementation for Common Lisp.
+
+Tested with SBCL.
+
+You need mpg321 in order to actually play (hear sounds).
+
+Sounds stolen from HBack.
