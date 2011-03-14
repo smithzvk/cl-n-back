@@ -41,7 +41,7 @@ a better way to do what I am trying to do, I would like to know it (like not
 using dynamic variables at all?)."
   (let ((var-names (tb::get-gensyms (length specials))))
     (multiple-value-bind (body-decl body)
-        (split-if (/. (x) (not (eql (car x) 'cl:declare))) body)
+        (split-on (/. (x) (not (eql (car x) 'cl:declare))) body)
       `(let ,(group (shuffle var-names specials) 2)
          (lambda ,vars
            ,@body-decl
@@ -84,6 +84,9 @@ adjust for it elsewhere."
 (defvar *score*)
 (defvar *?-back*)
 
+(defvar *delay* 2.5)
+(defvar *picture-delay* 0.5)
+
 (defun n-back-control (n block-size n-times)
   (iter (for i below n-times)
         (itemconfigure *score-board* *?-back*
@@ -95,10 +98,13 @@ adjust for it elsewhere."
                  (decf n) )))))
 
 (defun n-back (n block-size)
+  ;; Mark the beginning of a new round by some flashing text
   (intro n)
+  ;; {pic,snd}-ring hold the old pictures and sounds
   (let ((pic-ring (alexandria:make-circular-list n))
         (snd-ring (alexandria:make-circular-list n))
-        (score 0)
+        (score nil)
+        (correct 0)
         (errors 0)
         (matches 0) )
     (iter (for i below (+ n block-size))
@@ -106,14 +112,16 @@ adjust for it elsewhere."
           (for snds on snd-ring)
           (itemconfigure *score-board* *score*
                          :text (format nil "SCORE: ~A"
-                                       (if (= 0 matches)
-                                           0.5 (/ (- score errors) matches) )))
+                                       (if score
+                                           (round (* 1000 score))
+                                           'N/A )))
           (reset-keys)
           (for snd next (play-sound))
           (for pic next (display-picture))
-          (sleep 2.5)
+          (sleep *delay*)
           (process-events)
-          (when (car pic-ring)
+          (when (car pic-ring) ; i.e. when we have actually gone
+                               ; through at least N iterations
             (let (snd-match pic-match)
               (when (eql (car pics) pic)
                 (setf pic-match t)
@@ -122,20 +130,27 @@ adjust for it elsewhere."
                 (setf snd-match t)
                 (incf matches) )
               (when (and snd-match (snd-keypressed))
-                (incf score) )
+                (incf correct) )
               (when (and pic-match (pic-keypressed))
-                (incf score) )
+                (incf correct) )
               (when (or (and snd-match (not (snd-keypressed)))
                         (and (not snd-match) (snd-keypressed)) )
                 (incf errors) )
               (when (or (and pic-match (not (pic-keypressed)))
                         (and (not pic-match) (pic-keypressed)) )
                 (incf errors) )
+              (when (< 0 (+ correct errors))
+                (setf score (/ correct (+ correct errors))) )
               ;(format t "Iteration ~A~%  Sound Match: ~A~%  Picture Match: ~A~%  Sound Pressed: ~A~%  Picture Pressed: ~A~%  SCORE: ~A ERRORS: ~A MATCHES: ~A~%" i snd-match pic-match (snd-keypressed) (pic-keypressed) score errors matches)
               ))
           (setf (car pics) pic
                 (car snds) snd )
-          (finally (return (if (= 0 matches) 0.5 (/ (- score errors) matches)))) )))
+          (finally (itemconfigure *score-board* *score*
+                         :text (format nil "SCORE: ~A"
+                                       (if score
+                                           (round (* 1000 score))
+                                           'N/A )))
+                   (return (or score 0.5))) )))
 
 ;;;; A set of closures to handle key presses
 (let (snd-key pic-key)
@@ -157,13 +172,13 @@ adjust for it elsewhere."
   (let ((snd (alexandria:random-elt *sounds*)))
     (bordeaux-threads:make-thread
      (/. () (play-mp3 snd))
-     :name 'play-sound )
+     :name "play-sound" )
     snd ))
 
 (defun display-picture ()
   (let ((pic (alexandria:random-elt *pictures*)))
     (itemconfigure *cvs* pic :fill :blue)
-    (sleep .5)
+    (sleep *picture-delay*)
     (process-events)
     (itemconfigure *cvs* pic :fill "")
     pic ))
@@ -209,13 +224,25 @@ adjust for it elsewhere."
               (ppcre:split "\\s+"
                            (shell-command "echo ~/src/haskell/hback-0.0.2/sounds/*.mp3") ))
              (n-text-field (make-instance 'entry :text (mkstr n)))
+             (n-times-field (make-instance 'entry :text (mkstr n-times)))
+             (block-size-field (make-instance 'entry :text (mkstr block-size)))
              (start-n-back (make-instance
                             'button :text "Play N-Back"
                             :command (lambda-in-dynamic-environment
-                                         (*score-board* *score* *?-back* *cvs* *announce*
-                                                        *pictures* *sounds* )
+                                         (*cvs* *?-back* *score* *score-board* *announce*
+                                                *pictures* *sounds* *delay* *picture-delay* )
                                          ()
-                                       (n-back-control n block-size n-times) ))))
+                                       (unwind-protect
+                                            (catch 'stop-n-back
+                                              (configure n-text-field :state :disabled)
+                                              (configure n-times-field :state :disabled)
+                                              (configure block-size-field :state :disabled)
+                                              (n-back-control
+                                               (read-from-string (text n-text-field))
+                                               block-size n-times ))
+                                         (configure n-text-field :state :normal)
+                                         (configure n-times-field :state :normal)
+                                         (configure block-size-field :state :normal) )))))
         ;; Hide the announcement text
         (itemconfigure *cvs* *announce* :state :hidden)
         ;; Put borders around the blocks
@@ -230,12 +257,14 @@ adjust for it elsewhere."
         ;; Packing the widgets
         (pack *score-board*)
         (pack *cvs*)
-        (pack n-text-field :side :right)
-        (pack start-n-back :side :right) ))))
+        (pack n-text-field :side :left)
+        (pack start-n-back :side :left)
+        (pack n-times-field :side :left)
+        (pack block-size-field :side :left) ))))
 
 ;; This does not work (hangs while processing events, though it seems it shouldn't).
 (defun process-commands-while-waiting (seconds &optional (delay-time 1/20))
   (let ((time 0))
-    (tb:while (< time seconds)
+    (tb::while (< time seconds)
       (incf time (time-function #'process-events))
       (sleep delay-time) )))
