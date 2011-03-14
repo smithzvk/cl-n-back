@@ -137,9 +137,7 @@ don't want to wait for completion so timing works correctly."
 
 (defun play-sound ()
   (let ((snd (alexandria:random-elt *sounds*)))
-    (bordeaux-threads:make-thread
-     (/. () (play-mp3 snd))
-     :name "play-sound" )
+    (play-mp3 snd)
     snd ))
 
 (defun display-picture ()
@@ -172,7 +170,11 @@ don't want to wait for completion so timing works correctly."
                        (declare (ignore condition))
                        (return-from run-n-back) )))
     (with-ltk ()
-      (let* ((*score-board* (make-instance 'canvas :height 60 :width 600))
+      (let* ( ;; From here on we are going to be working inside the cl-n-back
+              ;; directory
+             (*default-pathname-defaults*
+              (asdf:system-source-directory :cl-n-back) )
+             (*score-board* (make-instance 'canvas :height 60 :width 600))
              (*score* (create-text *score-board* 20 20 "SCORE: 0"))
              (*?-back* (create-text *score-board* 500 20 (format nil "~A-BACK" n)))
              (*cvs* (make-instance 'canvas :height 600 :width 600))
@@ -187,15 +189,17 @@ don't want to wait for completion so timing works correctly."
                                                    (* 200 j)
                                                    (* 200 (1+ i))
                                                    (* 200 (1+ j)) ))))))
-             (*sounds* #>(ls ~/src/lisp/packages/cl-n-back/sounds/*.mp3)/#\Newline)
+             (*sounds* #>(ls sounds/*.mp3)/#\Newline)
              (n-text-field (make-instance 'entry :text (mkstr n)))
              (n-times-field (make-instance 'entry :text (mkstr n-times)))
              (block-size-field (make-instance 'entry :text (mkstr block-size)))
              (start-n-back (make-instance
                             'button :text "Play N-Back"
                             :command (lambda-in-dyn-env
-                                         (*cvs* *?-back* *score* *score-board* *announce*
-                                                *pictures* *sounds* *delay* *picture-delay* )
+                                         (*cvs* *?-back* *score* *score-board*
+                                                *announce* *pictures* *sounds*
+                                                *delay* *picture-delay*
+                                                *default-pathname-defaults* )
                                          ()
                                        (unwind-protect
                                             (catch 'stop-n-back
@@ -212,8 +216,8 @@ don't want to wait for completion so timing works correctly."
         (itemconfigure *cvs* *announce* :state :hidden)
         ;; Put borders around the blocks
         (mapcar (/. (block)
-                  (itemconfigure *cvs* block "outline" "black")
-                  (itemconfigure *cvs* block :fill "") )
+                   (itemconfigure *cvs* block "outline" "black")
+                   (itemconfigure *cvs* block :fill "") )
                 *pictures* )
         ;; set up key bindings
         (bind *tk* "<q>" (/. (evt) (declare (ignore evt)) (return-from run-n-back)))
