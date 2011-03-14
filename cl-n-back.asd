@@ -6,5 +6,5 @@
   :components ((:file "package")
                (:file "n-back") )
   :serial t
-  :depends-on (:ltk :trivial-shell :funds :iterate :bordeaux-threads
+  :depends-on (:ltk :funds :iterate :bordeaux-threads
                     :toolbox :clommand ))
